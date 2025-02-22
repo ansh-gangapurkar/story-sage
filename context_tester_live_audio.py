@@ -47,6 +47,14 @@ class AudiobookReaderContinuous:
         for voice in self.available_voices:
             self.voices_prompt += f"ID: {voice['id']}, Description: {voice['description']}\n"
 
+        # Keep track of current index
+        self.current_index = 0
+
+        # Initialize PyAudio for audio streaming
+        self.p = pyaudio.PyAudio()
+        self.rate = 22050
+        self.stream = self.p.open(format=pyaudio.paFloat32, channels=1, rate=self.rate, output=True)
+
         atexit.register(self.cleanup)
 
     def extract_text_from_pdf(self, pdf_path: str) -> str:
@@ -118,7 +126,7 @@ Analyze the text below and produce the JSON output:
             raise
 
 
-    async def generate_audio(self, text: str, voice_id: str, output_file: str, context_id: str, continue_stream: bool):
+    async def generate_audio(self, text: str, voice_id: str, output_file: str, context_id: str, continue_stream: bool, index: int):
         """Generate audio for a piece of text using Cartesia API with WebSocket streaming and context ID."""
         try:
             ws_url = "wss://api.cartesia.ai/tts/websocket?cartesia_version=2024-06-10&api_key=sk_car_NaJWSjmUaaXoBfSrfOXnX"
@@ -127,10 +135,6 @@ Analyze the text below and produce the JSON output:
                 "Cartesia-Version": "2024-06-10",
                 "X-API-Key": self.cartesia_api_key
             }
-
-            p = pyaudio.PyAudio()
-            rate = 22050
-            stream = None
 
             async with websockets.connect(ws_url) as websocket:
                 # Prepare the initial request with context_id and continue flag
@@ -159,6 +163,8 @@ Analyze the text below and produce the JSON output:
                     model_id="sonic",
                     transcript=text,
                     voice_id=voice_id,
+                    language="en",
+                    context_id=context_id,
                     stream=True,
                     output_format={
                         "container": "raw",
@@ -168,17 +174,10 @@ Analyze the text below and produce the JSON output:
                 ):
                     buffer = output["audio"]
 
-                    if not stream:
-                        stream = p.open(format=pyaudio.paFloat32, channels=1, rate=rate, output=True)
-
                     # Write the audio data to the stream
-                    stream.write(buffer)
+                    self.stream.write(buffer)
 
                     audio_data.extend(buffer)
-
-                stream.stop_stream()
-                stream.close()
-                p.terminate()
 
                 # Write the collected audio data to file
                 with open(output_file, "wb") as f:
@@ -216,7 +215,6 @@ Analyze the text below and produce the JSON output:
             context_id = str(uuid.uuid4()) # Generate a single context_id for the whole book
 
             segment_raw_files = [] # Keep track of raw segment files to concatenate later
-
             for i, segment in enumerate(segments_with_voices): # Use segments with voice_ids directly
                 try:
                     text = segment["text"]
@@ -232,7 +230,7 @@ Analyze the text below and produce the JSON output:
                     segment_raw_files.append(output_file) # Track segment file paths
 
                     logger.info(f"Generating audio (Context ID: {context_id}) for segment {i}, speaker {speaker} with voice ID {voice_id} and text: {text[:50]}...") # Truncate text for logging
-                    await self.generate_audio(text, voice_id, output_file, context_id, continue_stream)
+                    await self.generate_audio(text, voice_id, output_file, context_id, continue_stream, i)
 
                 except Exception as e:
                     logger.error(f"Error generating audio for segment {i}: {str(e)}")
@@ -251,7 +249,6 @@ Analyze the text below and produce the JSON output:
             final_wav_file = os.path.join(output_dir, "book_continuous.wav")
             AudiobookReaderContinuous.convert_raw_to_wav(final_raw_file, final_wav_file) # Use static method for conversion
             logger.info(f"Converted raw audio to WAV: {final_wav_file}")
-
 
             metadata_file = os.path.join(output_dir, "metadata.json") # Save metadata - can be optional now
             with open(metadata_file, "w") as f:
@@ -283,6 +280,9 @@ Analyze the text below and produce the JSON output:
         """Cleanup resources before exit - same as before."""
         try:
             del self.gemini_model
+            self.stream.stop_stream()
+            self.stream.close()
+            self.p.terminate()
         except Exception as e:
             logger.warning(f"Cleanup error: {e}")
 
@@ -292,7 +292,7 @@ if __name__ == "__main__":
     try:
         reader = AudiobookReaderContinuous() # Use the optimized class
         pdf_path = "The Tortoise and the Hare.pdf"
-        output_dir = "output_audio_continous" # Different output directory for continuous audio
+        output_dir = "output_audio_continuous" # Different output directory for continuous audio
         logger.info("Starting continuous book processing with Context ID...")
         asyncio.run(reader.process_book(pdf_path, output_dir))
         logger.info("Continuous book processing completed successfully!")
