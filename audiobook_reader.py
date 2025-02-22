@@ -127,71 +127,53 @@ Analyze the text below and produce the output accordingly:
                     "X-API-Key": self.cartesia_api_key
                 }
                 
-                async with websockets.connect(ws_url, headers = headers) as websocket:
+                async with websockets.connect(ws_url) as websocket:
                     # Prepare the initial request
                     request = {
                         "model_id": "sonic",
-                        "voice_id": voice_id,
+                        "voice": {
+                            "mode": "id",
+                            "id": voice_id
+                        },
+                        "language": "en",
                         "context_id": context_id,
                         "transcript": text[:50],
                         "continue": True,
                         "output_format": {
-                            "container": "wav",
-                            "encoding": "pcm_f32le",
-                            "sample_rate": 44100,
+                            "container": "raw",
+                            "encoding": "pcm_s16le",
+                            "sample_rate": 8000,
                         }
                     }
                     
                     # Send initial chunk
                     await websocket.send(json.dumps(request))
-                    
-                    # Send remaining text in chunks
-                    remaining_text = text[50:]
-                    chunk_size = 50
-                    chunks = [remaining_text[i:i+chunk_size] 
-                            for i in range(0, len(remaining_text), chunk_size)]
-                    
-                    # Send middle chunks
-                    for chunk in chunks[:-1]:
-                        request.update({
-                            "transcript": chunk,
-                            "continue": True
-                        })
-                        await websocket.send(json.dumps(request))
-                    
-                    # Send final chunk
-                    if chunks:
-                        request.update({
-                            "transcript": chunks[-1],
-                            "continue": False
-                        })
-                        await websocket.send(json.dumps(request))
-                    else:
-                        request.update({
-                            "transcript": "",
-                            "continue": False
-                        })
-                        await websocket.send(json.dumps(request))
-                    
-                    # Collect audio data
+
                     audio_data = bytearray()
-                    
+
                     while True:
                         try:
                             response = await websocket.recv()
                             response_data = json.loads(response)
-                            
+
                             if response_data.get("error"):
                                 raise Exception(f"WebSocket error: {response_data['error']}")
-                            
-                            if "audio" in response_data:
-                                audio_data.extend(response_data["audio"])
+
+                            # Get the data chunk from the response
+                            chunk = response_data.get("data")
+                            if chunk is not None:
+                                if isinstance(chunk, str):
+                                    audio_data.extend(chunk.encode("utf-8"))
+                                else:
+                                    # Assume the chunk is already in a byte-like format
+                                    audio_data.extend(chunk)
                             
                             if response_data.get("done", False):
                                 break
                         except websockets.exceptions.ConnectionClosed:
                             raise Exception("WebSocket connection closed unexpectedly")
-                    
+
+
                     # Write the collected audio data to file
                     with open(output_file, "wb") as f:
                         f.write(audio_data)
@@ -340,8 +322,8 @@ Analyze the text below and produce the output accordingly:
                     logger.error(f"No voice ID found for speaker: {speaker}")
                     continue
                     
-                output_file = os.path.join(output_dir, f"segment_{i:04d}.wav")
-                logger.info(f"Generating audio for speaker {speaker} with voice ID {voice_id}")
+                output_file = os.path.join(output_dir, f"segment_{i:04d}.raw")
+                logger.info(f"Generating audio for speaker {speaker} with voice ID {voice_id} and text {text}")
                 await self.generate_audio(text, voice_id, output_file)
             except Exception as e:
                 logger.error(f"Error generating audio for segment {i}: {str(e)}")
