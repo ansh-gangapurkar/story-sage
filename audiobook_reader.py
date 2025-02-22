@@ -128,7 +128,7 @@ Analyze the text below and produce the output accordingly:
                 }
                 
                 async with websockets.connect(ws_url) as websocket:
-                    # Prepare the initial requestddddd
+                    # Prepare the initial requestdddddsdf
                     request = {
                         "model_id": "sonic",
                         "voice": {
