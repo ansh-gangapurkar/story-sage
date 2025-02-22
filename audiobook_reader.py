@@ -127,11 +127,11 @@ Analyze the text below and produce the output accordingly:
                     "X-API-Key": self.cartesia_api_key
                 }
                 
-                async with websockets.connect(ws_url) as websocket:
+                async with websockets.connect(ws_url, headers = headers) as websocket:
                     # Prepare the initial request
                     request = {
                         "model_id": "sonic",
-                        "voice": {"mode": "id", "id": voice_id},
+                        "voice_id": voice_id,
                         "context_id": context_id,
                         "transcript": text[:50],
                         "continue": True,
