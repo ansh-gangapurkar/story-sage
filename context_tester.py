@@ -288,7 +288,7 @@ if __name__ == "__main__":
     try:
         reader = AudiobookReaderContinuous() # Use the optimized class
         pdf_path = "The Tortoise and the Hare.pdf"
-        output_dir = "output_audio" # Different output directory for continuous audio
+        output_dir = "output_audio_continous" # Different output directory for continuous audio
         logger.info("Starting continuous book processing with Context ID...")
         asyncio.run(reader.process_book(pdf_path, output_dir))
         logger.info("Continuous book processing completed successfully!")
