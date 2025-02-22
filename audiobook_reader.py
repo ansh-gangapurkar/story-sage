@@ -14,7 +14,7 @@ import uuid
 
 voicesUrl = "https://api.cartesia.ai/voices/"
 
-# Configure logging
+# Configure logging tester
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -128,7 +128,7 @@ Analyze the text below and produce the output accordingly:
                 }
                 
                 async with websockets.connect(ws_url) as websocket:
-                    # Prepare the initial request
+                    # Prepare the initial requestdddddsdf
                     request = {
                         "model_id": "sonic",
                         "voice": {
