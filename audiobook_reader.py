@@ -65,7 +65,7 @@ class AudiobookReader:
 
     def analyze_text_with_gemini(self, text: str) -> List[Dict]:
         """
-        Use Gemini API to analyze text and identify speakers and sentences.
+        Use Gemini API to analyze text and identify speakers and sentences.sdfasdfasf
         Returns a list of dictionaries containing speaker, text, and voice ID information.
         """
         try:
@@ -88,7 +88,7 @@ You are provided with a text excerpt from a story. Your task is to process the t
      - "speaker": the name of the identified speaker (e.g., "narrator", "Alice", etc.)  
      - "text": the sentence text as it appears in the story.  
    - Ensure that the output consists solely of this JSON array, with no additional text, commentary, or markdown formatting.  
-   - Escape special characters in the JSON if needed.d
+   - Escape special characters in the JSON if needed.
 
 Analyze the text below and produce the output accordingly:
 {text}
