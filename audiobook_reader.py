@@ -65,7 +65,7 @@ class AudiobookReader:
 
     def analyze_text_with_gemini(self, text: str) -> List[Dict]:
         """
-        Use Gemini API to analyze text and identify speakers and sentences.sdfasdfasf
+        Use Gemini API to analyze text and identify speakers and sentences.sdfasdfasfsdfasdfasdf
         Returns a list of dictionaries containing speaker, text, and voice ID information.
         """
         try:
