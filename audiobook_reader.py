@@ -198,7 +198,7 @@ if __name__ == "__main__":
         reader = AudiobookReader()
         
         # Define input and output paths
-        pdf_path = "the-tortoise-and-the-hare-story.pdf"
+        pdf_path = "/Users/ansh_is_g/Documents/Hackathon/The Tortoise and the Hare.pdf"
         output_dir = "output_audio"
         
         # Run the async process
