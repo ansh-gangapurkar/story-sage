@@ -88,7 +88,7 @@ You are provided with a text excerpt from a story. Your task is to process the t
      - "speaker": the name of the identified speaker (e.g., "narrator", "Alice", etc.)  
      - "text": the sentence text as it appears in the story.  
    - Ensure that the output consists solely of this JSON array, with no additional text, commentary, or markdown formatting.  
-   - Escape special characters in the JSON if needed.
+   - Escape special characters in the JSON if needed.d
 
 Analyze the text below and produce the output accordingly:
 {text}
@@ -114,7 +114,7 @@ Analyze the text below and produce the output accordingly:
 
     
     async def generate_audio(self, text: str, voice_id: str, output_file: str):
-        """Generate audio for a piece of text using Cartesia API with WebSocket streaming and HTTP fallback."""
+        """Generate audio fddddor a piece of text using Cartesia API with WebSocket streaming and HTTP fallback."""
         try:
             # First try the WebSocket approach
             try:
