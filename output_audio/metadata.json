@@ -2,108 +2,138 @@
   "segments": [
     {
       "speaker": "narrator",
-      "text": "Once, there was a strong, young hare who bragged about how fast he could run."
+      "text": "The\n \nTortoise\n \nand\n \nthe\n \nHare",
+      "voice_id": "a8136a0c-9642-497a-882d-8d591bdcb2fa"
     },
     {
       "speaker": "narrator",
-      "text": "The wise tortoise thought he was a show-off so he asked the hare for a race."
+      "text": "Once,\n \nthere\n \nwas\n \na\n \nstrong,\n \nyoung\n \nhare\n \nwho\n \nbragged\n \nabout\n \nhow\n \nfast\n \nhe\n \ncould\n \nrun.",
+      "voice_id": "a8136a0c-9642-497a-882d-8d591bdcb2fa"
     },
     {
       "speaker": "narrator",
-      "text": "The hare thought he would easily beat the tortoise."
+      "text": "The\n \nwise\n \ntortoise\n \nthought\n \nhe\n \nwas\n \na\n \nshow-off\n \nso\n \nhe\n \nasked\n \nthe\n \nhare\n \nfor\n \na\n \nrace.",
+      "voice_id": "a8136a0c-9642-497a-882d-8d591bdcb2fa"
     },
     {
       "speaker": "narrator",
-      "text": "All of the animals gathered at the finish line to see who would win."
+      "text": "The\n \nhare\n \nthought\n \nhe\n \nwould\n \neasily\n \nbeat\n \nthe\n \ntortoise.",
+      "voice_id": "a8136a0c-9642-497a-882d-8d591bdcb2fa"
     },
     {
       "speaker": "narrator",
-      "text": "As soon as the race started, the hare dashed ahead."
+      "text": "All\n \nof\n \nthe\n \nanimals\n \ngathered\n \nat\n \nthe\n \nfinish\n \nline\n \nto\n \nsee\n \nwho\n \nwould\n \nwin.",
+      "voice_id": "a8136a0c-9642-497a-882d-8d591bdcb2fa"
     },
     {
       "speaker": "narrator",
-      "text": "After a little while, he stopped for a rest."
+      "text": "As\n \nsoon\n \nas\n \nthe\n \nrace\n \nstarted,\n \nthe\n \nhare\n \ndashed\n \nahead.",
+      "voice_id": "a8136a0c-9642-497a-882d-8d591bdcb2fa"
+    },
+    {
+      "speaker": "narrator",
+      "text": "After\n \na\n \nlittle\n \nwhile,\n \nhe\n \nstopped\n \nfor\n \na\n \nrest.",
+      "voice_id": "a8136a0c-9642-497a-882d-8d591bdcb2fa"
     },
     {
       "speaker": "hare",
-      "text": "\u201cYou are so slow, you will never win!\u201d"
+      "text": "\u201cYou\n \nare\n \nso\n \nslow,\n \nyou\n \nwill\n \nnever\n \nwin!\u201d",
+      "voice_id": "6a9264bd-dd51-4a91-99fa-d81d93df833f"
     },
     {
       "speaker": "narrator",
-      "text": "he said to the tortoise."
+      "text": "he\n \nsaid\n \nto\n \nthe\n \ntortoise.",
+      "voice_id": "a8136a0c-9642-497a-882d-8d591bdcb2fa"
     },
     {
       "speaker": "narrator",
-      "text": "The hare leaned against a tree."
+      "text": "The\n \nhare\n \nleaned\n \nagainst\n \na\n \ntree.",
+      "voice_id": "a8136a0c-9642-497a-882d-8d591bdcb2fa"
     },
     {
       "speaker": "hare",
-      "text": "\u201cThat tortoise will never beat me!\u201d"
+      "text": "\u201cThat\n \ntortoise\n \nwill\n \nnever\n \nbeat\n \nme!\u201d",
+      "voice_id": "6a9264bd-dd51-4a91-99fa-d81d93df833f"
     },
     {
       "speaker": "narrator",
-      "text": "he laughed to himself."
+      "text": "he\n \nlaughed\n \nto\n \nhimself.",
+      "voice_id": "a8136a0c-9642-497a-882d-8d591bdcb2fa"
     },
     {
       "speaker": "narrator",
-      "text": "The hare closed his eyes and soon, he was asleep."
+      "text": "The\n \nhare\n \nclosed\n \nhis\n \neyes\n \nand\n \nsoon,\n \nhe\n \nwas\n \nasleep.",
+      "voice_id": "a8136a0c-9642-497a-882d-8d591bdcb2fa"
     },
     {
       "speaker": "narrator",
-      "text": "The tortoise walked slowly past the hare."
+      "text": "The\n \ntortoise\n \nwalked\n \nslowly\n \npast\n \nthe\n \nhare.",
+      "voice_id": "a8136a0c-9642-497a-882d-8d591bdcb2fa"
     },
     {
       "speaker": "narrator",
-      "text": "He didn\u2019t give up until he got to the end of the race."
+      "text": "He\n \ndidn\u2019t\n \ngive\n \nup\n \nuntil\n \nhe\n \ngot\n \nto\n \nthe\n \nend\n \nof\n \nthe\n \nrace.",
+      "voice_id": "a8136a0c-9642-497a-882d-8d591bdcb2fa"
     },
     {
       "speaker": "narrator",
-      "text": "The animals cheered as they saw the tortoise."
+      "text": "The\n \nanimals\n \ncheered\n \nas\n \nthey\n \nsaw\n \nthe\n \ntortoise.",
+      "voice_id": "a8136a0c-9642-497a-882d-8d591bdcb2fa"
     },
     {
       "speaker": "animals",
-      "text": "\u201cTortoise, you are the winner!\u201d"
+      "text": "\u201cTortoise,\n \nyou\n \nare\n \nthe\n \nwinner!\u201d",
+      "voice_id": "32b3f3c5-7171-46aa-abe7-b598964aa793"
     },
     {
       "speaker": "narrator",
-      "text": "they shouted happily."
+      "text": "they\n \nshouted\n \nhappily.",
+      "voice_id": "a8136a0c-9642-497a-882d-8d591bdcb2fa"
     },
     {
       "speaker": "narrator",
-      "text": "The hare heard the cheering and woke up."
+      "text": "The\n \nhare\n \nheard\n \nthe\n \ncheering\n \nand\n \nwoke\n \nup.",
+      "voice_id": "a8136a0c-9642-497a-882d-8d591bdcb2fa"
     },
     {
       "speaker": "narrator",
-      "text": "He ran as fast as he could towards the finish line, but it was too late."
+      "text": "He\n \nran\n \nas\n \nfast\n \nas\n \nhe\n \ncould\n \ntowards\n \nthe\n \nfinish\n \nline,\n \nbut\n \nit\n \nwas\n \ntoo\n \nlate.",
+      "voice_id": "a8136a0c-9642-497a-882d-8d591bdcb2fa"
     },
     {
       "speaker": "narrator",
-      "text": "The tortoise had already crossed the line."
+      "text": "The\n \ntortoise\n \nhad\n \nalready\n \ncrossed\n \nthe\n \nline.",
+      "voice_id": "a8136a0c-9642-497a-882d-8d591bdcb2fa"
     },
     {
       "speaker": "hare",
-      "text": "\u201cIt\u2019s not fair!\u201d"
+      "text": "\u201cIt\u2019s\n \nnot\n \nfair!\u201d",
+      "voice_id": "c2488032-7cba-449c-9036-9e11b69286a1"
     },
     {
       "speaker": "narrator",
-      "text": "complained the hare."
+      "text": "complained\n \nthe\n \nhare.",
+      "voice_id": "a8136a0c-9642-497a-882d-8d591bdcb2fa"
     },
     {
       "speaker": "hare",
-      "text": "\u201cWe have to do the race again!\u201d"
+      "text": "\u201cWe\n \nhave\n \nto\n \ndo\n \nthe\n \nrace\n \nagain!\u201d",
+      "voice_id": "6a9264bd-dd51-4a91-99fa-d81d93df833f"
     },
     {
       "speaker": "narrator",
-      "text": "But this time, no one listened to the hare."
+      "text": "But\n \nthis\n \ntime,\n \nno\n \none\n \nlistened\n \nto\n \nthe\n \nhare.",
+      "voice_id": "a8136a0c-9642-497a-882d-8d591bdcb2fa"
     },
     {
       "speaker": "narrator",
-      "text": "Keep trying, even when things seem hard."
+      "text": "Keep\n \ntrying,\n \neven\n \nwhen\n \nthings\n \nseem\n \nhard.",
+      "voice_id": "a8136a0c-9642-497a-882d-8d591bdcb2fa"
     }
   ],
   "unique_speakers": {
     "narrator": "a8136a0c-9642-497a-882d-8d591bdcb2fa",
-    "hare": "c2488032-7cba-449c-9036-9e11b69286a1",
-    "animals": "7447a397-30c1-4681-b687-0ed1b7abf0fb"
+    "hare": "6a9264bd-dd51-4a91-99fa-d81d93df833f",
+    "animals": "32b3f3c5-7171-46aa-abe7-b598964aa793"
   }
 }

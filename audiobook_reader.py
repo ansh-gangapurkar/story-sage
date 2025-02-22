@@ -222,7 +222,6 @@ Analyze the text below and produce the output accordingly:
             # Analyze text and identify speakers with their voice IDs
             logger.info("Analyzing text with Gemini API...")
             analyzed_segments = self.analyze_text_with_gemini(text)
-            
                 
             # Save metadata
             metadata = {
