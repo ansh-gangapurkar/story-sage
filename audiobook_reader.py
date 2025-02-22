@@ -9,6 +9,8 @@ from dotenv import load_dotenv
 import logging
 import atexit
 import requests
+import websockets
+import uuid
 
 voicesUrl = "https://api.cartesia.ai/voices/"
 
@@ -110,28 +112,120 @@ Analyze the text below and produce the output accordingly:
             logger.error(f"Error in Gemini API call: {str(e)}")
             raise
 
-
-    #CODE BELOW IS THE FUNCTION FOR AUDIO GENERATION
+    
     async def generate_audio(self, text: str, voice_id: str, output_file: str):
-        """Generate audio for a piece of text using Cartesia API."""
+        """Generate audio for a piece of text using Cartesia API with WebSocket streaming and HTTP fallback."""
         try:
-            data = self.cartesia_client.tts.bytes(
-                model_id="sonic",
-                transcript=text,
-                voice_id=voice_id,
-                output_format={
-                    "container": "wav",
-                    "encoding": "pcm_f32le",
-                    "sample_rate": 44100,
+            # First try the WebSocket approach
+            try:
+                context_id = str(uuid.uuid4())
+                # Updated WebSocket URL to match the API endpoint structure
+                ws_url = "wss://api.cartesia.ai/tts/websocket?cartesia_version=2024-06-10&api_key=sk_car_NaJWSjmUaaXoBfSrfOXnX"
+                
+                headers = {
+                    "Cartesia-Version": "2024-06-10",
+                    "X-API-Key": self.cartesia_api_key
                 }
-            )
-            
-            with open(output_file, "wb") as f:
-                f.write(data)
-            logger.info(f"Generated audio file: {output_file}")
+                
+                async with websockets.connect(ws_url) as websocket:
+                    # Prepare the initial request
+                    request = {
+                        "model_id": "sonic",
+                        "voice": {"mode": "id", "id": voice_id},
+                        "context_id": context_id,
+                        "transcript": text[:50],
+                        "continue": True,
+                        "output_format": {
+                            "container": "wav",
+                            "encoding": "pcm_f32le",
+                            "sample_rate": 44100,
+                        }
+                    }
+                    
+                    # Send initial chunk
+                    await websocket.send(json.dumps(request))
+                    
+                    # Send remaining text in chunks
+                    remaining_text = text[50:]
+                    chunk_size = 50
+                    chunks = [remaining_text[i:i+chunk_size] 
+                            for i in range(0, len(remaining_text), chunk_size)]
+                    
+                    # Send middle chunks
+                    for chunk in chunks[:-1]:
+                        request.update({
+                            "transcript": chunk,
+                            "continue": True
+                        })
+                        await websocket.send(json.dumps(request))
+                    
+                    # Send final chunk
+                    if chunks:
+                        request.update({
+                            "transcript": chunks[-1],
+                            "continue": False
+                        })
+                        await websocket.send(json.dumps(request))
+                    else:
+                        request.update({
+                            "transcript": "",
+                            "continue": False
+                        })
+                        await websocket.send(json.dumps(request))
+                    
+                    # Collect audio data
+                    audio_data = bytearray()
+                    
+                    while True:
+                        try:
+                            response = await websocket.recv()
+                            response_data = json.loads(response)
+                            
+                            if response_data.get("error"):
+                                raise Exception(f"WebSocket error: {response_data['error']}")
+                            
+                            if "audio" in response_data:
+                                audio_data.extend(response_data["audio"])
+                            
+                            if response_data.get("done", False):
+                                break
+                        except websockets.exceptions.ConnectionClosed:
+                            raise Exception("WebSocket connection closed unexpectedly")
+                    
+                    # Write the collected audio data to file
+                    with open(output_file, "wb") as f:
+                        f.write(audio_data)
+                    
+                    logger.info(f"Generated audio file using WebSocket: {output_file}")
+                    return
+                    
+            except Exception as ws_error:
+                logger.warning(f"WebSocket approach failed: {str(ws_error)}, falling back to HTTP API")
+                
+                # Fallback to regular HTTP API
+                try:
+                    data = self.cartesia_client.tts.bytes(
+                        model_id="sonic",
+                        transcript=text,
+                        voice_id=voice_id,
+                        output_format={
+                            "container": "wav",
+                            "encoding": "pcm_f32le",
+                            "sample_rate": 44100,
+                        }
+                    )
+                    
+                    with open(output_file, "wb") as f:
+                        f.write(data)
+                    logger.info(f"Generated audio file using HTTP API: {output_file}")
+                    return
+                except Exception as http_error:
+                    raise Exception(f"Both WebSocket and HTTP approaches failed. WebSocket error: {ws_error}, HTTP error: {http_error}")
+                
         except Exception as e:
             logger.error(f"Error generating audio: {str(e)}")
             raise
+
 
     async def process_book(self, pdf_path: str, output_dir: str):
         """Main function to process the book and generate audio files."""
