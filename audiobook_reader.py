@@ -2,12 +2,15 @@ import os
 import PyPDF2
 import google.generativeai as genai
 from cartesia import Cartesia
-from typing import Dict, List, Tuple
+from typing import Dict, List
 import json
 import asyncio
 from dotenv import load_dotenv
 import logging
 import atexit
+import requests
+
+voicesUrl = "https://api.cartesia.ai/voices/"
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -27,18 +30,23 @@ class AudiobookReader:
         # Initialize API clients
         self.cartesia_client = Cartesia(api_key=self.cartesia_api_key)
         genai.configure(api_key=self.gemini_api_key)
-        self.gemini_model = genai.GenerativeModel('gemini-pro')
+        self.gemini_model = genai.GenerativeModel('gemini-2.0-flash')
+
+        # Get available voices from Cartesia API
+        headers = {
+            "Cartesia-Version": "2024-06-10",
+            "X-API-Key": self.cartesia_api_key
+        }
+        response = requests.get(voicesUrl, headers=headers)
+        self.available_voices = response.json()
+        
+        # Create voices prompt for Gemini
+        self.voices_prompt = "Available voices:\n"
+        for voice in self.available_voices:
+            self.voices_prompt += f"ID: {voice['id']}, Description: {voice['description']}\n"
         
         # Register cleanup handler
         atexit.register(self.cleanup)
-        
-        # Default voice IDs for different character types
-        self.voice_mappings = {
-            "narrator": "b7d50908-b17c-442d-ad8d-810c63997ed9",  # Default narrator voice
-            "male_character": "701a96e1-7fdd-4a6c-a81e-a4a450403599",  # Male character voice
-            "female_character": "480d702d-0b70-4a32-82c3-93af7b8524ca",  # Female voice
-            "child_character": "56b87df1-594d-4135-992c-1112bb504c59",  # Child voice
-        }
         
     def extract_text_from_pdf(self, pdf_path: str) -> str:
         """Extract text content from a PDF file."""
@@ -56,32 +64,34 @@ class AudiobookReader:
     def analyze_text_with_gemini(self, text: str) -> List[Dict]:
         """
         Use Gemini API to analyze text and identify speakers and sentences.
-        Returns a list of dictionaries containing speaker and text information.
+        Returns a list of dictionaries containing speaker, text, and voice ID information.
         """
         try:
             prompt = f"""
 You are provided with a text excerpt from a story. Your task is to process the text as follows:
 
 1. **Sentence Segmentation:**  
-   - Break the text into individual sentences using punctuation (e.g., periods, exclamation points, question marks) as delimiters.
+   - Break the text into individual sentences using appropriate punctuation (e.g., periods, exclamation points, question marks) as delimiters.  
+   - Handle edge cases such as abbreviations, decimal numbers, and titles (e.g., "Dr.", "Mr.", "3.14").  
+   - Treat ellipses ("...") and em dashes ("—") carefully, maintaining sentence coherence.
 
 2. **Speaker Identification:**  
-   - For each sentence, determine the speaker.  
    - If a sentence contains dialogue with an explicit speaker name, extract that name.  
-   - If no explicit speaker is mentioned, assign "narrator" as the speaker.  
-   - If a sentence contains multiple dialogue segments with different speakers, split them into separate entries.
+   - If the speaker is implied or missing, infer logically based on context or assign "narrator" if unclear.  
+   - If a sentence includes multiple dialogue segments with different speakers, split them into separate entries.  
+   - Correctly handle nested dialogues or quotes within quotes.
 
 3. **Output Requirements:**  
    - Return a valid JSON array where each element is a JSON object with exactly two fields:  
      - "speaker": the name of the identified speaker (e.g., "narrator", "Alice", etc.)  
      - "text": the sentence text as it appears in the story.  
-   - Ensure that the output consists solely of this JSON array, with no additional text, commentary, or markdown formatting.
+   - Ensure that the output consists solely of this JSON array, with no additional text, commentary, or markdown formatting.  
+   - Escape special characters in the JSON if needed.
 
 Analyze the text below and produce the output accordingly:
 {text}
 """
 
-            
             response = self.gemini_model.generate_content(prompt)
             response_text = response.text.strip()
             
@@ -100,41 +110,28 @@ Analyze the text below and produce the output accordingly:
             logger.error(f"Error in Gemini API call: {str(e)}")
             raise
 
-    def assign_voice_ids(self, speakers: List[str]) -> Dict[str, str]:
-        """Assign Cartesia voice IDs to each unique speaker."""
-        voice_assignments = {}
-        for speaker in speakers:
-            speaker_lower = speaker.lower()
-            if speaker_lower == "narrator":
-                voice_assignments[speaker] = self.voice_mappings["narrator"]
-            elif "mother" in speaker_lower or any(female in speaker_lower for female in ["woman", "girl", "sister"]):
-                voice_assignments[speaker] = self.voice_mappings["female_character"]
-            elif any(child in speaker_lower for child in ["child", "kid", "little"]):
-                voice_assignments[speaker] = self.voice_mappings["child_character"]
-            else:
-                voice_assignments[speaker] = self.voice_mappings["male_character"]
-        return voice_assignments
 
-    async def generate_audio(self, text: str, voice_id: str, output_file: str):
-        """Generate audio for a piece of text using Cartesia API."""
-        try:
-            data = self.cartesia_client.tts.bytes(
-                model_id="sonic",
-                transcript=text,
-                voice_id=voice_id,
-                output_format={
-                    "container": "wav",
-                    "encoding": "pcm_f32le",
-                    "sample_rate": 44100,
-                }
-            )
+    #CODE BELOW IS THE FUNCTION FOR AUDIO GENERATION
+    # async def generate_audio(self, text: str, voice_id: str, output_file: str):
+    #     """Generate audio for a piece of text using Cartesia API."""
+    #     try:
+    #         data = self.cartesia_client.tts.bytes(
+    #             model_id="sonic",
+    #             transcript=text,
+    #             voice_id=voice_id,
+    #             output_format={
+    #                 "container": "wav",
+    #                 "encoding": "pcm_f32le",
+    #                 "sample_rate": 44100,
+    #             }
+    #         )
             
-            with open(output_file, "wb") as f:
-                f.write(data)
-            logger.info(f"Generated audio file: {output_file}")
-        except Exception as e:
-            logger.error(f"Error generating audio: {str(e)}")
-            raise
+    #         with open(output_file, "wb") as f:
+    #             f.write(data)
+    #         logger.info(f"Generated audio file: {output_file}")
+    #     except Exception as e:
+    #         logger.error(f"Error generating audio: {str(e)}")
+    #         raise
 
     async def process_book(self, pdf_path: str, output_dir: str):
         """Main function to process the book and generate audio files."""
@@ -146,35 +143,101 @@ Analyze the text below and produce the output accordingly:
             logger.info("Extracting text from PDF...")
             text = self.extract_text_from_pdf(pdf_path)
             
-            # Analyze text and identify speakers
+            # Analyze text and identify speakers with their voice IDs
             logger.info("Analyzing text with Gemini API...")
             analyzed_segments = self.analyze_text_with_gemini(text)
             
-            # Get unique speakers
-            unique_speakers = list(set(segment["speaker"] for segment in analyzed_segments))
-            logger.info(f"Found speakers: {', '.join(unique_speakers)}")
-            
-            # Assign voice IDs to speakers
-            voice_assignments = self.assign_voice_ids(unique_speakers)
-            
+
+            #CODE BELOW IS THE AUDIO OUTPUT GENERATION
+
             # Generate audio for each segment
-            logger.info("Generating audio segments...")
-            for i, segment in enumerate(analyzed_segments):
-                speaker = segment["speaker"]
-                text = segment["text"]
-                voice_id = voice_assignments[speaker]
-                output_file = os.path.join(output_dir, f"segment_{i:04d}.wav")
-                await self.generate_audio(text, voice_id, output_file)
+            # logger.info("Generating audio segments...")
+            # for i, segment in enumerate(analyzed_segments):
+            #     print(segment)
+            #     text = segment["text"]
+            #     voice_id = segment["id"]
+            #     output_file = os.path.join(output_dir, f"segment_{i:04d}.wav")
+            #     await self.generate_audio(text, voice_id, output_file)
                 
             # Save metadata
             metadata = {
-                "segments": analyzed_segments,
-                "voice_assignments": voice_assignments
+                "segments": analyzed_segments
             }
+            speakers = {}  # Create a dictionary to store unique speakers
+            for segment in metadata['segments']:
+                speakers[segment['speaker']] = True  # Use speaker as the key and True as the value
+
+            # Add the dictionary to the end of the JSON
+            metadata['unique_speakers'] = speakers
+
+            print(metadata)
+
+
+
+
+
+
+
+
+            try:
+                # Create the prompt for Gemini to analyze the text and assign voice IDs
+                prompt = f"""
+            You are provided with a json file with two fields, speaker and text, which is a per sentence transcript of a story. Your task is to process the text as follows:
+            go through all of the lines and understand the personality of each speaker based on their text.
+                - "speaker": the name of the identified speaker (e.g., "narrator", "Alice", etc.)  
+                - "text": the sentence text as it appears in the story.  
+
+            based on these available voices, in 
+            {self.voices_prompt} which includes all the available voice ids, and their description, assign the voice id to the speaker based on their personality.
+            Make sure to assign the voice id to the speaker based on their personality and not randomly.
+
+            Return a dictionary in the following format:
+                "speaker1": "voice_id1",
+                "speaker2": "voice_id2",
+            """
+
+                # Call the Gemini API to generate the response based on the prompt
+                response = self.gemini_model.generate_content(prompt)
+                response_text = response.text.strip()
+                
+                # Log or print the response text to check what we're getting
+                logger.info(f"Gemini API response: {response_text}")
+                
+                # Attempt to parse the response if it's valid JSON
+                voice_id_dict = json.loads(response_text)
+
+                # Update metadata with the voice ID dictionary
+                metadata['voice_ids'] = voice_id_dict  # Add the new dictionary under the key "voice_ids"
+
+                # Optionally, print the voice ID dictionary to check the result
+                print("Voice ID Dictionary:", voice_id_dict)
+
+            except Exception as e:
+                logger.error(f"Error in Gemini API call: {str(e)}")
+                raise
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            # Save the updated metadata to the file
             metadata_file = os.path.join(output_dir, "metadata.json")
             with open(metadata_file, "w") as f:
                 json.dump(metadata, f, indent=2)
-            logger.info(f"Saved metadata to {metadata_file}")
+            logger.info(f"Saved updated metadata with voice IDs to {metadata_file}")
+
+        
             
         except Exception as e:
             logger.error(f"Error processing book: {str(e)}")
@@ -198,7 +261,7 @@ if __name__ == "__main__":
         reader = AudiobookReader()
         
         # Define input and output paths
-        pdf_path = "/Users/ansh_is_g/Documents/Hackathon/The Tortoise and the Hare.pdf"
+        pdf_path = "The Tortoise and the Hare.pdf"
         output_dir = "output_audio"
         
         # Run the async process
@@ -211,4 +274,4 @@ if __name__ == "__main__":
     finally:
         # Ensure cleanup is called
         if 'reader' in locals():
-            reader.cleanup() 
+            reader.cleanup()
