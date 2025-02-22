@@ -14,7 +14,7 @@ import uuid
 
 voicesUrl = "https://api.cartesia.ai/voices/"
 
-# Configure logging
+# Configure logging tester
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
