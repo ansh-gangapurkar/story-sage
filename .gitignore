@@ -1,2 +1,3 @@
-output_audio
+output_audio/
+output_audio_continuous/
 .env

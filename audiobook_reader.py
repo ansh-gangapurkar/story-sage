@@ -65,7 +65,7 @@ class AudiobookReader:
 
     def analyze_text_with_gemini(self, text: str) -> List[Dict]:
         """
-        Use Gemini API to analyze text and identify speakers and sentences.
+        Use Gemini API to analyze text and identify speakers and sentences.sdfasdfasfsdfasdfasdf
         Returns a list of dictionaries containing speaker, text, and voice ID information.
         """
         try:
@@ -114,7 +114,7 @@ Analyze the text below and produce the output accordingly:
 
     
     async def generate_audio(self, text: str, voice_id: str, output_file: str):
-        """Generate audio for a piece of text using Cartesia API with WebSocket streaming and HTTP fallback."""
+        """Generate audio fddddor a piece of text using Cartesia API with WebSocket streaming and HTTP fallback."""
         try:
             # First try the WebSocket approach
             try:
