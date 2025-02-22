@@ -112,26 +112,26 @@ Analyze the text below and produce the output accordingly:
 
 
     #CODE BELOW IS THE FUNCTION FOR AUDIO GENERATION
-    # async def generate_audio(self, text: str, voice_id: str, output_file: str):
-    #     """Generate audio for a piece of text using Cartesia API."""
-    #     try:
-    #         data = self.cartesia_client.tts.bytes(
-    #             model_id="sonic",
-    #             transcript=text,
-    #             voice_id=voice_id,
-    #             output_format={
-    #                 "container": "wav",
-    #                 "encoding": "pcm_f32le",
-    #                 "sample_rate": 44100,
-    #             }
-    #         )
+    async def generate_audio(self, text: str, voice_id: str, output_file: str):
+        """Generate audio for a piece of text using Cartesia API."""
+        try:
+            data = self.cartesia_client.tts.bytes(
+                model_id="sonic",
+                transcript=text,
+                voice_id=voice_id,
+                output_format={
+                    "container": "wav",
+                    "encoding": "pcm_f32le",
+                    "sample_rate": 44100,
+                }
+            )
             
-    #         with open(output_file, "wb") as f:
-    #             f.write(data)
-    #         logger.info(f"Generated audio file: {output_file}")
-    #     except Exception as e:
-    #         logger.error(f"Error generating audio: {str(e)}")
-    #         raise
+            with open(output_file, "wb") as f:
+                f.write(data)
+            logger.info(f"Generated audio file: {output_file}")
+        except Exception as e:
+            logger.error(f"Error generating audio: {str(e)}")
+            raise
 
     async def process_book(self, pdf_path: str, output_dir: str):
         """Main function to process the book and generate audio files."""
@@ -147,17 +147,6 @@ Analyze the text below and produce the output accordingly:
             logger.info("Analyzing text with Gemini API...")
             analyzed_segments = self.analyze_text_with_gemini(text)
             
-
-            #CODE BELOW IS THE AUDIO OUTPUT GENERATION
-
-            # Generate audio for each segment
-            # logger.info("Generating audio segments...")
-            # for i, segment in enumerate(analyzed_segments):
-            #     print(segment)
-            #     text = segment["text"]
-            #     voice_id = segment["id"]
-            #     output_file = os.path.join(output_dir, f"segment_{i:04d}.wav")
-            #     await self.generate_audio(text, voice_id, output_file)
                 
             # Save metadata
             metadata = {
@@ -170,78 +159,110 @@ Analyze the text below and produce the output accordingly:
             # Add the dictionary to the end of the JSON
             metadata['unique_speakers'] = speakers
 
-            print(metadata)
-
-
-
-
-
-
-
+            print(metadata['unique_speakers'])
 
             try:
                 # Create the prompt for Gemini to analyze the text and assign voice IDs
                 prompt = f"""
-            You are provided with a json file with two fields, speaker and text, which is a per sentence transcript of a story. Your task is to process the text as follows:
-            go through all of the lines and understand the personality of each speaker based on their text.
-                - "speaker": the name of the identified speaker (e.g., "narrator", "Alice", etc.)  
-                - "text": the sentence text as it appears in the story.  
+                    You are given a JSON file containing two fields: "speaker" and "text". This file provides a sentence-by-sentence transcript of a story. Your task is to analyze the text and assign a voice ID to each speaker based on their personality. Follow these steps:
 
-            based on these available voices, in 
-            {self.voices_prompt} which includes all the available voice ids, and their description, assign the voice id to the speaker based on their personality.
-            Make sure to assign the voice id to the speaker based on their personality and not randomly.
+                    1. **Analyze the Speaker's Personality:**  
+                    Examine each speaker's dialogue (or narrative) and infer their personality traits based on their language and tone. Consider characteristics like their emotional state, formal/informal language, and any other relevant aspects of the speech that suggest their persona.
 
-            Return a dictionary in the following format:
-                "speaker1": "voice_id1",
-                "speaker2": "voice_id2",
-            """
+                    2. **Assign Voice IDs Based on Personality:**  
+                    Use the available voice descriptions from the list provided to choose an appropriate voice ID for each speaker. Ensure the voice matches the speaker’s inferred personality traits, not randomly assigned.
 
-                # Call the Gemini API to generate the response based on the prompt
+                    3. **Output Format:**  
+                    After processing, return a JSON in the following format:
+                    - "speaker1": "voice_id1"
+                    - "speaker2": "voice_id2"
+                    - Where "speakerX" corresponds to the name of the speaker, and "voice_idX" corresponds to the selected voice ID.
+
+                    Here is the JSON file with speaker information:
+
+                    {metadata}
+
+                    Based on this data, and the list of available voices from the API (described in the following text), assign a voice to each speaker that aligns with their personality. ONLY ADD THE VOICE ID TO THE JSON. NOTHING ELSE!!!!
+
+                    Available voices:
+                    {self.voices_prompt}
+                    """
                 response = self.gemini_model.generate_content(prompt)
                 response_text = response.text.strip()
-                
-                # Log or print the response text to check what we're getting
-                logger.info(f"Gemini API response: {response_text}")
-                
-                # Attempt to parse the response if it's valid JSON
-                voice_id_dict = json.loads(response_text)
 
-                # Update metadata with the voice ID dictionary
-                metadata['voice_ids'] = voice_id_dict  # Add the new dictionary under the key "voice_ids"
+                def clean_json_response(text):
+                    # Remove any markdown code block indicators and language specifiers
+                    cleaned = text.replace("```python", "").replace("```json", "").replace("```", "").strip()
+                    # Remove any leading/trailing whitespace
+                    return cleaned.strip()
 
-                # Optionally, print the voice ID dictionary to check the result
-                print("Voice ID Dictionary:", voice_id_dict)
+                try:
+                    return_text = json.loads(response_text)
+                except json.JSONDecodeError:
+                    # First cleaning attempt
+                    cleaned_text = clean_json_response(response_text)
+                    try:
+                        return_text = json.loads(cleaned_text)
+                    except json.JSONDecodeError:
+                        # Log the actual cleaned text that failed to parse
+                        logger.error(f"Failed to parse Gemini response. Original: {response_text}")
+                        logger.error(f"Cleaned version: {cleaned_text}")
+                        raise
+
+                logger.info(f"Gemini API response: {return_text}")
+
+                # return_text is already a dictionary, no need to parse it again
+                voice_id_dict = return_text  # Remove the json.loads() here
+
+                # Add the voice ID dictionary to the metadata
+                metadata['unique_speakers'] = voice_id_dict
+
+                # Log the voice IDs for debugging
+                logger.info(f"Voice ID dictionary: {metadata['unique_speakers']}")
+
 
             except Exception as e:
                 logger.error(f"Error in Gemini API call: {str(e)}")
                 raise
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            # Save the updated metadata to the file
-            metadata_file = os.path.join(output_dir, "metadata.json")
-            with open(metadata_file, "w") as f:
-                json.dump(metadata, f, indent=2)
-            logger.info(f"Saved updated metadata with voice IDs to {metadata_file}")
-
-        
-            
         except Exception as e:
             logger.error(f"Error processing book: {str(e)}")
             raise
+
+
+
+
+        #CODE BELOW IS THE AUDIO OUTPUT GENERATION
+
+        # Generate audio for each segment
+        logger.info("Generating audio segments...")
+        for i, segment in enumerate(analyzed_segments):
+            try:
+                text = segment["text"]
+                speaker = segment["speaker"]
+                # Get the voice ID from the unique_speakers dictionary using the speaker name
+                voice_id = metadata['unique_speakers'].get(speaker)
+                
+                if not voice_id:
+                    logger.error(f"No voice ID found for speaker: {speaker}")
+                    continue
+                    
+                output_file = os.path.join(output_dir, f"segment_{i:04d}.wav")
+                logger.info(f"Generating audio for speaker {speaker} with voice ID {voice_id}")
+                await self.generate_audio(text, voice_id, output_file)
+            except Exception as e:
+                logger.error(f"Error generating audio for segment {i}: {str(e)}")
+                # Continue with next segment instead of failing completely
+                continue
+
+
+
+
+
+        metadata_file = os.path.join(output_dir, "metadata.json")
+        with open(metadata_file, "w") as f:
+            json.dump(metadata, f, indent=2)
+        
+        logger.info(f"Saved metadata to {metadata_file}")
 
     def cleanup(self):
         """Cleanup resources before exit"""
