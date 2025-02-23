@@ -164,16 +164,27 @@ Analyze the text below and produce the JSON output:
             }
 
             # Generate and stream audio using the websocket
-            async with websockets.connect("wss://api.cartesia.ai/tts/stream") as websocket:
-                await websocket.send(json.dumps(request))
-                async for message in websocket:
-                    response = json.loads(message)
-                    buffer = response["audio"]
+            for output in self.ws.send(
+                model_id="sonic",
+                transcript=text,
+                voice_id=voice_id,
+                language="en",
+                context_id=context_id,
+                stream=True,
+                output_format={
+                    "container": "raw",
+                    "encoding": "pcm_f32le", 
+                    "sample_rate": 22050
+                },
+                _experimental_voice_controls={"speed": 0,
+                                              "emotion": emotions}
+            ):
+                buffer = output["audio"]
 
-                    # Write the audio data to the stream
-                    self.stream.write(buffer)
+                # Write the audio data to the stream
+                self.stream.write(buffer)
 
-                    audio_data.extend(buffer)
+                audio_data.extend(buffer)
 
             # Write the collected audio data to file
             with open(output_file, "wb") as f:
@@ -283,7 +294,7 @@ if __name__ == "__main__":
     load_dotenv()
     try:
         reader = AudiobookReaderContinuous() # Use the optimized class
-        pdf_path = "The Tortoise and the Hare.pdf"
+        pdf_path = "archive/The Tortoise and the Hare.pdf"
         output_dir = "output_audio_continuous" # Different output directory for continuous audio
         logger.info("Starting continuous book processing with Context ID...")
         asyncio.run(reader.process_book(pdf_path, output_dir))
