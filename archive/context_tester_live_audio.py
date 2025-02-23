@@ -13,7 +13,7 @@ import websockets
 import uuid
 import pyaudio
 import base64
-import wave
+import soundfile as sf
 
 voicesUrl = "https://api.cartesia.ai/voices/"
 
@@ -165,7 +165,7 @@ Analyze the text below and produce the JSON output:
             await websocket.send(json.dumps(request))
             async for message in websocket:
                 output = json.loads(message)
-                buffer = base64.b64decode(output["data"])  # Decode the base64-encoded audio data
+                buffer = base64.b64decode(output["data"])  # Decode the base32-encoded audio data
 
                 # Write the audio data to the stream
                 self.stream.write(buffer)
@@ -198,6 +198,7 @@ Analyze the text below and produce the JSON output:
             context_id = str(uuid.uuid4()) # Generate a single context_id for the whole book
 
             segment_raw_files = [] # Keep track of raw segment files to concatenate later
+            
             for i, segment in enumerate(segments_with_voices): # Use segments with voice_ids directly
                 try:
                     text = segment["text"]
@@ -248,19 +249,27 @@ Analyze the text below and produce the JSON output:
             raise
 
     @staticmethod
-    def convert_raw_to_wav(raw_filepath, wav_filepath, sample_rate=22050, channels=1, sample_width=4):
-        """Static method to convert raw PCM to WAV."""
-        import wave
-        with open(raw_filepath, 'rb') as raw_file:
-            raw_data = raw_file.read()
+    def convert_raw_to_wav(raw_filepath, wav_filepath, sample_rate=22050, channels=1, subtype='FLOAT'):
+        """Static method to convert raw PCM to WAV using soundfile."""
+        try:
+            raw_data = None
+            with open(raw_filepath, 'rb') as raw_file:
+                raw_data = raw_file.read()
 
-        with wave.open(wav_filepath, 'w') as wav_file:
-            wav_file.setnchannels(channels)
-            wav_file.setsampwidth(sample_width)  # 4 bytes for 32-bit float PCM
-            wav_file.setframerate(sample_rate)
-            wav_file.setcomptype('NONE', 'not compressed')
-            wav_file.writeframes(raw_data)
-        logger.info(f"Converted {raw_filepath} to {wav_filepath}")
+            if not raw_data:
+                logger.error(f"Raw data is empty from {raw_filepath}")
+                return
+
+            # Assuming 32-bit float raw data, reshape it to a 1D array of floats
+            import numpy as np
+            float_data = np.frombuffer(raw_data, dtype=np.float32)
+
+            sf.write(wav_filepath, float_data, sample_rate, subtype='FLOAT')  # Explicitly use FLOAT subtype
+            logger.info(f"Converted {raw_filepath} to {wav_filepath} using soundfile")
+
+        except Exception as e:
+            logger.error(f"Error converting {raw_filepath} to WAV using soundfile: {e}")
+            raise
 
     def cleanup(self):
         """Cleanup resources before exit - same as before."""
