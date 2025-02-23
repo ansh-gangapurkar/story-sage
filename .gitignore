@@ -1,3 +1,6 @@
 output_audio/
 output_audio_continuous/
+archive/
+story-sage-front-end/public/
+*.json
 .env
