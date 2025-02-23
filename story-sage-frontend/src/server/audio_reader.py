@@ -12,8 +12,8 @@ import requests
 import websockets
 import uuid
 import pyaudio
-import wave  # Import wave for WAV conversion
 import soundfile as sf
+import base64
 
 voicesUrl = "https://api.cartesia.ai/voices/"
 
@@ -59,6 +59,12 @@ class AudiobookReaderContinuous:
             "calm": None,
             "none": None
         }
+
+        # Initialize PyAudio for audio streaming and websocket for continuous audio
+        self.audio_data = bytearray()
+        self.p = pyaudio.PyAudio()
+        self.rate = 22050
+        self.stream = self.p.open(format=pyaudio.paFloat32, channels=1, rate=self.rate, output=True)
 
         atexit.register(self.cleanup)
 
@@ -161,66 +167,55 @@ You are provided with a text excerpt from a story, which may be formatted as a p
             logger.error(f"Error in Gemini API call: {str(e)}")
             raise
 
-    async def generate_audio(self, text: str, voice_id: str, output_file: str, context_id: str, language: str, emotions: List[str] = None):
+    async def generate_audio(self, text: str, voice_id: str, output_file: str, context_id: str, language: str, continue_stream: bool, emotions: List[str] = None):
         """Generate audio for a piece of text using Cartesia API with WebSocket streaming and context ID."""
         try:
-            ws_url = "wss://api.cartesia.ai/tts/websocket?cartesia_version=2024-06-10"
-            headers = {
-                "Cartesia-Version": "2024-06-10",
-                "X-API-Key": self.cartesia_api_key
-            }
-
-            p = pyaudio.PyAudio()
-            rate = 22050
-            stream = None
-            
-            ws = self.cartesia_client.tts.websocket()
-            audio_data = bytearray()
-
             # Map emotions to Cartesia-supported emotions
+            mapped_emotions = []
             if emotions:
-                mapped_emotions = []
                 for emotion in emotions:
                     mapped_emotion = self.emotion_mapping.get(emotion)
-                    if mapped_emotion:  # Only append if there's a valid mapping
+                    if mapped_emotion:
                         mapped_emotions.append(mapped_emotion)
-            else:
-                mapped_emotions = []
 
-            for output in ws.send(
-                model_id="sonic",
-                transcript=text,
-                voice_id=voice_id,
-                stream=True,  # Enable streaming
-                output_format={
+            # Create WebSocket request with continuation parameters
+            request = {
+                "model_id": "sonic",
+                "voice": {
+                    "mode": "id",
+                    "id": voice_id
+                },
+                "language": language,
+                "context_id": context_id,
+                "stream": True,
+                "transcript": text,
+                "continue": continue_stream,  # Add continuation flag
+                "output_format": {
                     "container": "raw",
                     "encoding": "pcm_f32le",
                     "sample_rate": 22050
                 },
-                language=language,
-                context_id=context_id,  # Keep context_id for continuity
-                _experimental_voice_controls={
+                "_experimental_voice_controls": {
                     "speed": 0,
-                    "emotion": mapped_emotions  # Use mapped emotions
+                    "emotion": mapped_emotions
                 }
-            ):
-                buffer = output["audio"]
+            }
 
-                if not stream:
-                    stream = p.open(format=pyaudio.paFloat32, channels=1, rate=rate, output=True)
+            # Use WebSocket for streaming
+            async with websockets.connect("wss://api.cartesia.ai/tts/websocket?cartesia_version=2024-06-10&api_key=sk_car_NaJWSjmUaaXoBfSrfOXnX") as websocket:
+                await websocket.send(json.dumps(request))
+                async for message in websocket:
+                    output = json.loads(message)
+                    try:
+                        buffer = base64.b64decode(output["data"])  # Decode the base32-encoded audio data
+                    except Exception:
+                        break
 
-                stream.write(buffer)
-                audio_data.extend(buffer)
+                    # Write the audio data to the stream
+                    self.stream.write(buffer)
+                    self.audio_data.extend(buffer)
 
-            stream.stop_stream()
-            stream.close()
-            p.terminate()
-
-            # Write the collected audio data to file
-            with open(output_file, "wb") as f:
-                f.write(audio_data)
-
-            logger.info(f"Generated audio file with emotions {mapped_emotions} (Context ID: {context_id}): {output_file}")
+            logger.info(f"Generated audio with emotions {mapped_emotions} (Context ID: {context_id}): {output_file}")
 
         except Exception as e:
             logger.error(f"Error generating audio: {str(e)}")
@@ -228,50 +223,44 @@ You are provided with a text excerpt from a story, which may be formatted as a p
 
     async def process_book_streaming(self, pdf_path: str, output_dir: str, language: str, audio_callback=None) -> None:
         try:
-            # Create the output directory
             os.makedirs(output_dir, exist_ok=True)
-            
-            # Create a subdirectory for raw files
-            raw_dir = os.path.join(output_dir, "raw")
-            os.makedirs(raw_dir, exist_ok=True)
             
             text = self.extract_text_from_pdf(pdf_path)
             segments_with_voices = self.analyze_text_and_assign_voices_with_gemini(text, language=language)
             
-            # Process segments and save RAW files
-            segment_raw_files = []
-            context_id = str(uuid.uuid4())
+            # Process segments with context continuation
+            context_id = str(uuid.uuid4())  # Single context ID for the entire book
             
             for i, segment in enumerate(segments_with_voices):
-                # Save raw files in the raw subdirectory
-                raw_filepath = os.path.join(raw_dir, f"segment_{i}.raw")
+                # Set continue_stream flag for all but the last segment
+                continue_stream = i < (len(segments_with_voices) - 1)
                 
                 await self.generate_audio(
                     text=segment["text"],
                     voice_id=segment["voice_id"],
-                    output_file=raw_filepath,
+                    output_file=None,  # No need to output individual raw files
                     context_id=context_id,
                     language=language,
-                    emotions=segment["emotions"]  # Pass emotions directly from segment
+                    continue_stream=continue_stream,
+                    emotions=segment["emotions"]
                 )
-                segment_raw_files.append(raw_filepath)
-                
-            # Concatenate all RAW files
-            final_raw_file = os.path.join(raw_dir, "book_continuous.raw")
-            with open(final_raw_file, 'wb') as outfile:
-                for raw_file in segment_raw_files:
-                    with open(raw_file, 'rb') as infile:
-                        outfile.write(infile.read())
-                    
-            # Convert to WAV in the main output directory
-            final_wav_file = os.path.join(output_dir, "book_continuous.wav")
-            self.convert_raw_to_wav(final_raw_file, final_wav_file)
             
-            # Clean up raw files
-            for raw_file in segment_raw_files:
-                os.remove(raw_file)
-            os.remove(final_raw_file)
-            os.rmdir(raw_dir)
+            # Write the collected audio data to file
+            audio_data_file = os.path.join(output_dir, "collected_audio.raw")
+            with open(audio_data_file, "wb") as f:
+                f.write(self.audio_data)
+
+            # Clean up audio components
+            self.stream.stop_stream()
+            self.stream.close()
+            self.p.terminate()
+            
+            # Convert the collected audio data to a WAV file
+            final_wav_file = os.path.join(output_dir, "book_continuous.wav")
+            self.convert_raw_to_wav(audio_data_file, final_wav_file)
+            
+            # Clean up the raw audio data file
+            os.remove(audio_data_file)
 
         except Exception as e:
             logger.error(f"Error processing book: {str(e)}")
