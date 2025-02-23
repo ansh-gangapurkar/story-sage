@@ -12,6 +12,8 @@ import requests
 import websockets
 import uuid
 import pyaudio
+import base64
+import wave
 
 voicesUrl = "https://api.cartesia.ai/voices/"
 
@@ -51,7 +53,7 @@ class AudiobookReaderContinuous:
         self.current_index = 0
 
         # Initialize PyAudio for audio streaming and websocket for continuous audio
-        self.ws = self.cartesia_client.tts.websocket()
+        self.audio_data = bytearray()
         self.p = pyaudio.PyAudio()
         self.rate = 22050
         self.stream = self.p.open(format=pyaudio.paFloat32, channels=1, rate=self.rate, output=True)
@@ -140,61 +142,37 @@ Analyze the text below and produce the JSON output:
 
     async def generate_audio(self, text: str, voice_id: str, output_file: str, context_id: str, continue_stream: bool, index: int, emotions: List[str]):
         """Generate audio for a piece of text using Cartesia API with WebSocket streaming and context ID."""
-        try:
-            audio_data = bytearray()
-
-            print(emotions) # Print emotions for debugging
-
-            request = {
-                "model_id": "sonic",
-                "voice": {
-                    "mode": "id",
-                    "id": voice_id
-                },
-                "language": "en",
-                "context_id": context_id,
-                "stream": True,
-                "transcript": text,
-                "continue": continue_stream,
-                "output_format": {
-                    "container": "raw",
-                    "encoding": "pcm_f32le", 
-                    "sample_rate": 22050
-                }
+        request = {
+            "model_id": "sonic",
+            "voice": {
+                "mode": "id",
+                "id": voice_id
+            },
+            "language": "en",
+            "context_id": context_id,
+            "stream": True,
+            "transcript": text,
+            "continue": continue_stream,
+            "output_format": {
+                "container": "raw",
+                "encoding": "pcm_f32le", 
+                "sample_rate": 22050
             }
+        }
 
-            # Generate and stream audio using the websocket
-            for output in self.ws.send(
-                model_id="sonic",
-                transcript=text,
-                voice_id=voice_id,
-                language="en",
-                context_id=context_id,
-                stream=True,
-                output_format={
-                    "container": "raw",
-                    "encoding": "pcm_f32le", 
-                    "sample_rate": 22050
-                },
-                _experimental_voice_controls={"speed": 0,
-                                              "emotion": emotions}
-            ):
-                buffer = output["audio"]
+        # Generate and stream audio using the websocket
+        async with websockets.connect("wss://api.cartesia.ai/tts/websocket?cartesia_version=2024-06-10&api_key=sk_car_NaJWSjmUaaXoBfSrfOXnX") as websocket:
+            await websocket.send(json.dumps(request))
+            async for message in websocket:
+                output = json.loads(message)
+                buffer = base64.b64decode(output["data"])  # Decode the base64-encoded audio data
 
                 # Write the audio data to the stream
                 self.stream.write(buffer)
 
-                audio_data.extend(buffer)
+                self.audio_data.extend(buffer)
 
-            # Write the collected audio data to file
-            with open(output_file, "wb") as f:
-                f.write(audio_data)
-
-            logger.info(f"Generated audio file using WebSocket (Context ID: {context_id}): {output_file}")
-
-        except Exception as e:
-            logger.error(f"Error generating audio: {str(e)}")
-            raise
+        logger.info(f"Generated audio file using WebSocket (Context ID: {context_id}): {output_file}")
 
     async def process_book(self, pdf_path: str, output_dir: str):
         """Main function to process the book and generate continuous audio file."""
@@ -241,6 +219,10 @@ Analyze the text below and produce the JSON output:
                 except Exception as e:
                     logger.error(f"Error generating audio for segment {i}: {str(e)}")
                     continue
+            
+            # Write the collected audio data to file
+            with open(output_file, "wb") as f:
+                f.write(self.audio_data)
 
             # Concatenate all raw audio segments into a single raw file
             logger.info("Concatenating audio segments...")
