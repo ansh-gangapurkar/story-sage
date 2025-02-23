@@ -15,10 +15,6 @@ export default function UploadPage() {
   const clientId = useRef<string>(Math.random().toString(36).substring(2))
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  // Add text input state
-  const [inputText, setInputText] = useState<string>('');
-  const [inputMethod, setInputMethod] = useState<'text' | 'pdf'>('text');
   const [language, setLanguage] = useState<string>('en');
 
   useEffect(() => {
@@ -41,34 +37,15 @@ export default function UploadPage() {
 
   const handleCreateAudio = async () => {
     try {
+      if (!selectedFile) {
+        throw new Error('Please select a PDF file first');
+      }
+
       setIsProcessing(true);
       setError(null);
       
-      let file_path: string;
-      let output_dir: string;
-      
-      // Check if we have content to process
-      if (inputMethod === 'text' && !inputText.trim()) {
-        throw new Error('Please enter some text first');
-      }
-      
-      if (inputMethod === 'pdf' && !selectedFile) {
-        throw new Error('Please select a PDF file first');
-      }
-      
       const formData = new FormData();
-      
-      if (inputMethod === 'text') {
-        // Create a text file from input
-        const textBlob = new Blob([inputText], { type: 'text/plain' });
-        const textFile = new File([textBlob], 'input.txt');
-        formData.append('file', textFile);
-      } else {
-        // PDF upload
-        formData.append('file', selectedFile as File);
-      }
-      
-      // Add selected language to form data
+      formData.append('file', selectedFile);
       formData.append('language', language);
       
       // Upload file
@@ -83,8 +60,7 @@ export default function UploadPage() {
       }
       
       const data = await response.json();
-      file_path = data.file_path;
-      output_dir = data.output_dir;
+      const { file_path, output_dir } = data;
 
       // Create WebSocket connection
       wsRef.current = new WebSocket(`ws://localhost:8000/ws/${clientId.current}`);
@@ -104,11 +80,7 @@ export default function UploadPage() {
 
       // Send data after connection is established
       wsRef.current.send(JSON.stringify({
-        // Change based on input method
-        ...(inputMethod === 'pdf' 
-          ? { pdf_path: file_path }  // Send as pdf_path for PDF uploads
-          : { text_path: file_path } // Send as text_path for text input
-        ),
+        pdf_path: file_path,
         output_dir: output_dir,
         language: language
       }));
@@ -178,11 +150,11 @@ export default function UploadPage() {
               Upload Your Story
             </h1>
             <p className="subtitle-text max-w-2xl mx-auto">
-              Transform your written words into a captivating audiobook
+              Transform your PDF into a captivating audiobook
             </p>
           </motion.div>
 
-          {/* Input Method Toggle and Content */}
+          {/* PDF Upload Section */}
           <div className="mt-8 flex flex-col items-center gap-6">
             {/* Language Selector */}
             <div className="w-full max-w-xl">
@@ -212,79 +184,41 @@ export default function UploadPage() {
               </label>
             </div>
 
-            {/* Input Method Toggle */}
-            <div className="flex gap-4">
-              <button
-                onClick={() => setInputMethod('text')}
-                className={`px-4 py-2 rounded ${
-                  inputMethod === 'text' 
-                    ? 'bg-emerald-500 text-white' 
-                    : 'bg-gray-300 text-gray-700'
-                }`}
+            {/* PDF Uploader */}
+            <div className="w-full max-w-xl">
+              <label
+                className={`relative flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl 
+                  transition-colors duration-200 ease-in-out cursor-pointer
+                  ${selectedFile ? 'border-emerald-500 bg-emerald-50/50' : 'border-gray-400 hover:border-emerald-400'}
+                  ${error ? 'border-red-500 bg-red-50/50' : ''}`}
               >
-                Enter Text
-              </button>
-              <button
-                onClick={() => setInputMethod('pdf')}
-                className={`px-4 py-2 rounded ${
-                  inputMethod === 'pdf' 
-                    ? 'bg-emerald-500 text-white' 
-                    : 'bg-gray-300 text-gray-700'
-                }`}
-              >
-                Upload PDF
-              </button>
+                <div className="flex flex-col items-center justify-center p-4">
+                  <ArrowUpTrayIcon 
+                    className={`w-8 h-8 mb-2 ${
+                      error ? 'text-red-500' :
+                      selectedFile ? 'text-emerald-500' : 'text-gray-400'
+                    }`} 
+                  />
+                  <p className="text-sm text-gray-500">
+                    {selectedFile ? (
+                      <span className="font-semibold text-emerald-600">{selectedFile.name}</span>
+                    ) : (
+                      <span>Click to upload PDF or drag and drop</span>
+                    )}
+                  </p>
+                </div>
+                <input
+                  type="file"
+                  className="hidden"
+                  accept=".pdf"
+                  onChange={handleFileChange}
+                  disabled={isProcessing}
+                />
+              </label>
             </div>
 
-            {/* Text Input */}
-            {inputMethod === 'text' && (
-              <div className="w-full max-w-xl">
-                <textarea
-                  value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
-                  placeholder="Paste your story text here..."
-                  className="w-full h-48 p-4 border-2 border-gray-400 rounded-xl focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                />
-              </div>
-            )}
-
-            {/* PDF Uploader */}
-            {inputMethod === 'pdf' && (
-              <div className="w-full max-w-xl">
-                <label
-                  className={`relative flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl 
-                    transition-colors duration-200 ease-in-out cursor-pointer
-                    ${selectedFile ? 'border-emerald-500 bg-emerald-50/50' : 'border-gray-400 hover:border-emerald-400'}
-                    ${error ? 'border-red-500 bg-red-50/50' : ''}`}
-                >
-                  <div className="flex flex-col items-center justify-center p-4">
-                    <ArrowUpTrayIcon 
-                      className={`w-8 h-8 mb-2 ${
-                        error ? 'text-red-500' :
-                        selectedFile ? 'text-emerald-500' : 'text-gray-400'
-                      }`} 
-                    />
-                    <p className="text-sm text-gray-500">
-                      {selectedFile ? (
-                        <span className="font-semibold text-emerald-600">{selectedFile.name}</span>
-                      ) : (
-                        <span>Click to upload PDF or drag and drop</span>
-                      )}
-                    </p>
-                  </div>
-                  <input
-                    type="file"
-                    className="hidden"
-                    accept=".pdf"
-                    onChange={handleFileChange}
-                    disabled={isProcessing}
-                  />
-                </label>
-              </div>
-            )}
-
-            {/* Create Audio Button - Show for both methods */}
-            {(inputMethod === 'text' ? inputText : selectedFile) && !isProcessing && (
+            {/* Create Audio Button */}
+            {selectedFile && !isProcessing && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}

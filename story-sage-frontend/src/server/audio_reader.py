@@ -12,7 +12,7 @@ import requests
 import websockets
 import uuid
 import pyaudio
-import wave # Import cleawave for WAV conversion
+import wave  # Import wave for WAV conversion
 import soundfile as sf
 
 voicesUrl = "https://api.cartesia.ai/voices/"
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 class AudiobookReaderContinuous:
     def __init__(self):
-        # Initialize API keys and clients - same as before
+        # Initialize API keys and clients
         self.cartesia_api_key = os.environ.get("CARTESIA_API_KEY")
         self.gemini_api_key = os.environ.get("GOOGLE_API_KEY")
 
@@ -36,7 +36,7 @@ class AudiobookReaderContinuous:
         genai.configure(api_key=self.gemini_api_key)
         self.gemini_model = genai.GenerativeModel('gemini-2.0-flash')
 
-        # Get available voices from Cartesia API - same as before
+        # Get available voices from Cartesia API
         headers = {
             "Cartesia-Version": "2024-06-10",
             "X-API-Key": self.cartesia_api_key
@@ -44,15 +44,26 @@ class AudiobookReaderContinuous:
         response = requests.get(voicesUrl, headers=headers)
         self.available_voices = response.json()
 
-        # Create voices prompt for Gemini - same as before
+        # Create voices prompt for Gemini
         self.voices_prompt = "Available voices:\n"
         for voice in self.available_voices:
             self.voices_prompt += f"ID: {voice['id']}, Description: {voice['description']}, Language: {voice['language']}\n"
 
+        # Emotion mapping from Gemini to Cartesia
+        self.emotion_mapping = {
+            "happy": "positivity",
+            "sad": "sadness",
+            "angry": "anger",
+            "excited": "positivity",
+            "worried": "sadness",
+            "calm": None,
+            "none": None
+        }
+
         atexit.register(self.cleanup)
 
     def extract_text_from_pdf(self, pdf_path: str) -> str:
-        """Extract text content from a PDF file - same as before."""
+        """Extract text content from a PDF file."""
         try:
             with open(pdf_path, 'rb') as file:
                 pdf_reader = PyPDF2.PdfReader(file)
@@ -70,7 +81,6 @@ class AudiobookReaderContinuous:
         Returns a list of dictionaries containing speaker, text, and voice ID information.
         """
         try:
-
             prompt = f"""
 You are provided with a text excerpt from a story, which may be formatted as a play script. Your task is to process the text as follows, adhering strictly to the instructions below:
 
@@ -94,11 +104,11 @@ You are provided with a text excerpt from a story, which may be formatted as a p
      - "happy"
      - "sad"
      - "angry"
-     - "neutral"
+     - "none"
      - "excited"
      - "worried"
      - "calm"
-   - Base the emotion on the sentence content, punctuation, and context
+   - Base the emotion on the sentence content, punctuation, and context.
 
 4. **Output Requirements:**
    - Return a valid JSON array where each element is a JSON object with these fields:
@@ -110,7 +120,6 @@ You are provided with a text excerpt from a story, which may be formatted as a p
    - Do NOT include additional text, comments, or formatting outside the JSON array. The output must be pure JSON.
    - Validate that every "voice_id" corresponds to a voice from the provided list and supports '{language}'.
 
-
 **Available Voices:**
 {self.voices_prompt}
 
@@ -121,7 +130,7 @@ You are provided with a text excerpt from a story, which may be formatted as a p
             response = self.gemini_model.generate_content(prompt)
             response_text = response.text.strip()
 
-            def clean_json_response(text): # Helper function for JSON cleaning - moved here for better encapsulation
+            def clean_json_response(text):  # Helper function for JSON cleaning
                 cleaned = text.replace("```json", "").replace("```python", "").replace("```", "").strip()
                 return cleaned.strip()
 
@@ -141,20 +150,18 @@ You are provided with a text excerpt from a story, which may be formatted as a p
             for segment in return_text:
                 processed_segments.append({
                     "speaker": segment.get("speaker"),
-                    "original_text": segment.get("original_text"), # Keep original text in metadata
-                    "text": segment.get("translated_text"),      # Use translated text for TTS
+                    "original_text": segment.get("original_text"),  # Keep original text in metadata
+                    "text": segment.get("translated_text"),        # Use translated text for TTS
                     "voice_id": segment.get("voice_id"),
-                    "emotions": segment.get("emotions", ["neutral"])  # Default to neutral if no emotions
+                    "emotions": segment.get("emotions", ["none"])  # Default to "none" if no emotions
                 })
             return processed_segments
-
 
         except Exception as e:
             logger.error(f"Error in Gemini API call: {str(e)}")
             raise
 
-
-    async def generate_audio(self, text: str, voice_id: str, output_file: str, context_id: str, continue_stream: bool, language: str, emotions: List[str] = None):
+    async def generate_audio(self, text: str, voice_id: str, output_file: str, context_id: str, language: str, emotions: List[str] = None):
         """Generate audio for a piece of text using Cartesia API with WebSocket streaming and context ID."""
         try:
             ws_url = "wss://api.cartesia.ai/tts/websocket?cartesia_version=2024-06-10"
@@ -170,23 +177,31 @@ You are provided with a text excerpt from a story, which may be formatted as a p
             ws = self.cartesia_client.tts.websocket()
             audio_data = bytearray()
 
-            # Generate and stream audio using the websocket
+            # Map emotions to Cartesia-supported emotions
+            if emotions:
+                mapped_emotions = []
+                for emotion in emotions:
+                    mapped_emotion = self.emotion_mapping.get(emotion)
+                    if mapped_emotion:  # Only append if there's a valid mapping
+                        mapped_emotions.append(mapped_emotion)
+            else:
+                mapped_emotions = []
+
             for output in ws.send(
                 model_id="sonic",
                 transcript=text,
                 voice_id=voice_id,
-                stream=True,
+                stream=True,  # Enable streaming
                 output_format={
                     "container": "raw",
                     "encoding": "pcm_f32le",
                     "sample_rate": 22050
                 },
                 language=language,
-                context_id=context_id,
-                continue_stream=continue_stream,
+                context_id=context_id,  # Keep context_id for continuity
                 _experimental_voice_controls={
                     "speed": 0,
-                    "emotion": emotions or ["neutral"]  # Default to neutral if no emotions provided
+                    "emotion": mapped_emotions  # Use mapped emotions
                 }
             ):
                 buffer = output["audio"]
@@ -205,12 +220,11 @@ You are provided with a text excerpt from a story, which may be formatted as a p
             with open(output_file, "wb") as f:
                 f.write(audio_data)
 
-            logger.info(f"Generated audio file with emotions {emotions} (Context ID: {context_id}): {output_file}")
+            logger.info(f"Generated audio file with emotions {mapped_emotions} (Context ID: {context_id}): {output_file}")
 
         except Exception as e:
             logger.error(f"Error generating audio: {str(e)}")
             raise
-
 
     async def process_book_streaming(self, pdf_path: str, output_dir: str, language: str, audio_callback=None) -> None:
         try:
@@ -231,16 +245,14 @@ You are provided with a text excerpt from a story, which may be formatted as a p
             for i, segment in enumerate(segments_with_voices):
                 # Save raw files in the raw subdirectory
                 raw_filepath = os.path.join(raw_dir, f"segment_{i}.raw")
-                continue_stream = i < len(segments_with_voices) - 1
                 
                 await self.generate_audio(
                     text=segment["text"],
                     voice_id=segment["voice_id"],
                     output_file=raw_filepath,
                     context_id=context_id,
-                    continue_stream=continue_stream,
                     language=language,
-                    emotions=segment.get("emotions", ["neutral"])  # Pass emotions to generate_audio
+                    emotions=segment["emotions"]  # Pass emotions directly from segment
                 )
                 segment_raw_files.append(raw_filepath)
                 
@@ -281,7 +293,7 @@ You are provided with a text excerpt from a story, which may be formatted as a p
             import numpy as np
             float_data = np.frombuffer(raw_data, dtype=np.float32)
 
-            sf.write(wav_filepath, float_data, sample_rate, subtype='FLOAT') # Explicitly use FLOAT subtype
+            sf.write(wav_filepath, float_data, sample_rate, subtype='FLOAT')  # Explicitly use FLOAT subtype
             logger.info(f"Converted {raw_filepath} to {wav_filepath} using soundfile")
 
         except Exception as e:
@@ -289,12 +301,11 @@ You are provided with a text excerpt from a story, which may be formatted as a p
             raise
 
     def cleanup(self):
-        """Cleanup resources before exit - same as before."""
+        """Cleanup resources before exit."""
         try:
             del self.gemini_model
         except Exception as e:
             logger.warning(f"Cleanup error: {e}")
-
 
 if __name__ == "__main__":
     load_dotenv()
@@ -308,7 +319,7 @@ if __name__ == "__main__":
         async def test_callback(audio_chunk):
             pass  # In test mode, we don't need to do anything with the audio chunks
         
-        # Use process_book_streaming instead of process_book
+        # Use process_book_streaming
         asyncio.run(reader.process_book_streaming(
             pdf_path=pdf_path,
             output_dir=output_dir,
