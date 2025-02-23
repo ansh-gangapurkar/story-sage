@@ -35,11 +35,11 @@ class AudiobookReaderContinuous:
         self.gemini_model = genai.GenerativeModel('gemini-2.0-flash')
 
         # Get available voices from Cartesia API - same as before
-        headers = {
+        self.headers = {
             "Cartesia-Version": "2024-06-10",
             "X-API-Key": self.cartesia_api_key
         }
-        response = requests.get(voicesUrl, headers=headers)
+        response = requests.get(voicesUrl, headers=self.headers)
         self.available_voices = response.json()
 
         # Create voices prompt for Gemini - same as before
@@ -74,7 +74,7 @@ class AudiobookReaderContinuous:
     def analyze_text_and_assign_voices_with_gemini(self, text: str) -> List[Dict]:
         """
         Use Gemini API to analyze text, identify speakers, and assign voice IDs in one step.
-        Returns a list of dictionaries containing speaker, text, and voice ID information.
+        Returns a list of dictionaries containing speaker, text, voice ID, and emotion information.
         """
         try:
             prompt = f"""
@@ -83,16 +83,25 @@ You are provided with a text excerpt from a story. Your task is to process the t
 1. **Sentence Segmentation & Speaker Identification:**
    - Break the text into individual sentences and identify the speaker for each sentence, as in the previous instructions.
 
-2. **Voice ID Assignment:**
+2. **Voice ID Assignment & Emotion Levels:**
    - For each identified speaker, infer their personality from their dialogue (or narrative context for narrator).
    - Based on the inferred personality, choose the most fitting voice ID from the provided list of available voices.
    - If a speaker is "narrator", choose a default narrator voice, unless the context suggests a specific tone (e.g., a playful narrator voice for a funny story).
+   - Determine the level of each emotion (anger, positivity, surprise, sadness, curiosity) and add it to the metadata.
+     - Emotion levels are based on the speaker's dialogue or narrative context.
+     - Ensure ONLY the five emotions listed above are added to the array.
+     - Emotion level is purely additive, so if an emotion is low, that means the emotion is present but to a lower degree.
+     - If an emotion is non-existent, it should not be included in the metadata.
+     - Emotion levels can ONLY be "lowest", "low", "high", or "highest" for each emotion
+     - Ensure that some emotion is present in all dialogue, even if the emotion level is "lowest".
+     - Adjust the narrator's emotion levels based on the narrative context.
 
 3. **Output Requirements:**
-   - Return a valid JSON array where each element is a JSON object with three fields:
+   - Return a valid JSON array where each element is a JSON object with four fields:
      - "speaker": the name of the identified speaker (e.g., "narrator", "Alice", etc.)
      - "text": the sentence text.
      - "voice_id": the Cartesia voice ID assigned to this speaker.
+     - "emotions": an array of emotion specifications (e.g., ["positivity:high", "curiosity:low"]).
    - Ensure the output is ONLY the JSON array, without extra text or formatting.
 
 Available voices:
@@ -121,33 +130,34 @@ Analyze the text below and produce the JSON output:
                     raise
             return return_text
 
-
         except Exception as e:
             logger.error(f"Error in Gemini API call: {str(e)}")
             raise
 
-
-    async def generate_audio(self, text: str, voice_id: str, output_file: str, context_id: str, continue_stream: bool, index: int):
+    async def generate_audio(self, text: str, voice_id: str, output_file: str, context_id: str, continue_stream: bool, index: int, emotions: List[str]):
         """Generate audio for a piece of text using Cartesia API with WebSocket streaming and context ID."""
         try:
             audio_data = bytearray()
 
-            # request = {
-            #     "model_id": "sonic",
-            #     "voice": {
-            #         "mode": "id",
-            #         "id": voice_id
-            #     },
-            #     "language": "en",
-            #     "context_id": context_id,
-            #     "transcript": text, # Send initial 50 chars as per documentation
-            #     "continue": continue_stream, # Set continue flag based on input
-            #     "output_format": {
-            #         "container": "raw",
-            #         "encoding": "pcm_f32le", 
-            #         "sample_rate": 22050,
-            #     }
-            # }
+            print(emotions) # Print emotions for debugging
+
+            request = {
+                "model_id": "sonic",
+                "voice": {
+                    "mode": "id",
+                    "id": voice_id
+                },
+                "language": "en",
+                "context_id": context_id,
+                "stream": True,
+                "transcript": text,
+                "continue": continue_stream,
+                "output_format": {
+                    "container": "raw",
+                    "encoding": "pcm_f32le", 
+                    "sample_rate": 22050
+                }
+            }
 
             # Generate and stream audio using the websocket
             for output in self.ws.send(
@@ -162,6 +172,8 @@ Analyze the text below and produce the JSON output:
                     "encoding": "pcm_f32le", 
                     "sample_rate": 22050
                 },
+                _experimental_voice_controls={"speed": 0,
+                                              "emotion": emotions}
             ):
                 buffer = output["audio"]
 
@@ -179,7 +191,6 @@ Analyze the text below and produce the JSON output:
         except Exception as e:
             logger.error(f"Error generating audio: {str(e)}")
             raise
-
 
     async def process_book(self, pdf_path: str, output_dir: str):
         """Main function to process the book and generate continuous audio file."""
@@ -200,7 +211,6 @@ Analyze the text below and produce the JSON output:
                 speakers_dict[segment['speaker']] = segment['voice_id'] # Directly map speaker to voice_id
             metadata['unique_speakers'] = speakers_dict
 
-
             logger.info("Generating audio segments using WebSocket with Context ID...")
             overall_audio_data = bytearray() # Accumulate audio data for all segments
             context_id = str(uuid.uuid4()) # Generate a single context_id for the whole book
@@ -211,6 +221,7 @@ Analyze the text below and produce the JSON output:
                     text = segment["text"]
                     speaker = segment["speaker"]
                     voice_id = segment["voice_id"] # Voice ID is already assigned by Gemini
+                    emotions = segment.get("emotions", []) # Get emotions from segment
                     continue_stream = i < len(segments_with_voices) - 1 # Continue stream for all but the last segment
 
                     if not voice_id:
@@ -221,7 +232,7 @@ Analyze the text below and produce the JSON output:
                     segment_raw_files.append(output_file) # Track segment file paths
 
                     logger.info(f"Generating audio (Context ID: {context_id}) for segment {i}, speaker {speaker} with voice ID {voice_id} and text: {text[:50]}...") # Truncate text for logging
-                    await self.generate_audio(text, voice_id, output_file, context_id, continue_stream, i)
+                    await self.generate_audio(text, voice_id, output_file, context_id, continue_stream, i, emotions)
 
                 except Exception as e:
                     logger.error(f"Error generating audio for segment {i}: {str(e)}")
@@ -246,7 +257,6 @@ Analyze the text below and produce the JSON output:
                 json.dump(metadata, f, indent=2)
             logger.info(f"Saved metadata to {metadata_file}")
 
-
         except Exception as e:
             logger.error(f"Error processing book: {str(e)}")
             raise
@@ -266,7 +276,6 @@ Analyze the text below and produce the JSON output:
             wav_file.writeframes(raw_data)
         logger.info(f"Converted {raw_filepath} to {wav_filepath}")
 
-
     def cleanup(self):
         """Cleanup resources before exit - same as before."""
         try:
@@ -276,7 +285,6 @@ Analyze the text below and produce the JSON output:
             self.p.terminate()
         except Exception as e:
             logger.warning(f"Cleanup error: {e}")
-
 
 if __name__ == "__main__":
     load_dotenv()
