@@ -84,8 +84,8 @@ You are provided with a text excerpt from a story. Your task is to process the t
    - Break the text into individual sentences and identify the speaker for each sentence, as in the previous instructions.
 
 2. **Voice ID Assignment & Emotion Levels:**
-   - For each identified speaker, infer their personality from their dialogue (or narrative context for narrator).
-   - Based on the inferred personality, choose the most fitting voice ID from the provided list of available voices.
+   - For each identified speaker, infer their personality and gender from their dialogue (or narrative context for narrator).
+   - Based on the inferred personality and gender, choose the most fitting voice ID from the provided list of available voices.
    - If a speaker is "narrator", choose a default narrator voice, unless the context suggests a specific tone (e.g., a playful narrator voice for a funny story).
    - Determine the level of each emotion (anger, positivity, surprise, sadness, curiosity) and add it to the metadata.
      - Emotion levels are based on the speaker's dialogue or narrative context.
@@ -95,6 +95,10 @@ You are provided with a text excerpt from a story. Your task is to process the t
      - Emotion levels can ONLY be "lowest", "low", "high", or "highest" for each emotion
      - Ensure that some emotion is present in all dialogue, even if the emotion level is "lowest".
      - Adjust the narrator's emotion levels based on the narrative context.
+    - Note: The voice ID and emotion levels are used for generating the audio segments in the next step.
+    - Note: Ensure that the voice ID and emotion levels are consistent with the speaker's personality and dialogue.
+    - Note: Ensure that the voice ID chosen for each speaker is different from the others to distinguish between 
+    speakers and ensure they are consistent throughout the text.
 
 3. **Output Requirements:**
    - Return a valid JSON array where each element is a JSON object with four fields:
