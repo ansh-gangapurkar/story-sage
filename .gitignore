@@ -4,5 +4,6 @@ archive/
 story-sage-front-end/public/
 *.json
 .env
+story-sage-frontend/.env
 story-sage-frontend/node_modules/*
 story-sage-frontend/.next/*
