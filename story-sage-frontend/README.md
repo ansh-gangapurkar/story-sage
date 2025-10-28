@@ -27,20 +27,30 @@ npm run dev
 yarn dev
 ```
 
+Run `src/server/main.py/` to start the backend.
+
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-## Tech Stack
+## Frontend Tech Stack
 
-- Next.js 14
+- Next.js 16
 - TypeScript
 - Tailwind CSS
 - Framer Motion
 - Heroicons
 
+## Backend Tech Stack
+
+- Cartesia API
+- Gemini API
+- FastAPI
+- Uvicorn
+
 ## Project Structure
 
-- `src/app/` - Main application pages
-- `src/components/` - Reusable React components
+- `src/app/` - Application pages
+- `src/lib` - Audiobook reader interface/classes
+- `src/server` - Backend server code
 - `public/` - Static assets and images
 
 ## Contributing
