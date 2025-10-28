@@ -2,6 +2,7 @@ import logging
 import os
 import json
 import uuid
+from dotenv import load_dotenv
 from fastapi import FastAPI, UploadFile, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
@@ -11,6 +12,8 @@ import base64
 from audio_reader import AudiobookReaderContinuous
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
